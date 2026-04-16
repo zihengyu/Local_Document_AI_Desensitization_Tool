@@ -80,3 +80,50 @@
 
 
 
+
+
+## 🆕 Lite 聊天 TXT 脱敏子应用
+
+为聊天记录蒸馏前清洗新增了独立 lite 子应用（不走原 PDF/Word/OCR 主流程）：
+
+- 入口：`Data_Masking/ui/chat_gui_app.py`
+- 支持聊天头格式：`YYYY-MM-DD HH:MM:SS '发送者'`
+- 默认极速模式：仅规则+词典+上下文，低资源占用
+- 严格模式：可选开启 NER（仅启用时检查模型）
+- 白名单：`config/whitelist.txt`
+- 大文件处理：流式解析，GUI 仅预览前 200 行、前 500 条命中
+- 本地映射恢复：支持恢复原文与一键清空映射
+
+### Lite 运行
+
+```bash
+# macOS / Linux
+./run_lite.sh
+
+# Windows
+run_lite.bat
+```
+
+### Lite 打包
+
+```bash
+# macOS: 产出 .app（在 dist/chat_desensitizer_lite.app）
+./build_lite.sh
+
+# Windows: 产出 .exe（在 dist/chat_desensitizer_lite/ 或单文件配置）
+build_lite.bat
+```
+
+
+### macOS 芯片兼容说明（Intel + Apple Silicon）
+
+- `build_lite.sh` 默认使用 `--target-arch universal2`，用于产出可同时支持 Intel 与 Apple Silicon 的 `.app`（前提是本机 Python / PyInstaller 支持 universal2 构建）。
+- 若应用双击闪退，可在终端执行以下命令查看报错：
+
+```bash
+./dist/chat_desensitizer_lite.app/Contents/MacOS/chat_desensitizer_lite
+```
+
+- Lite 应用的映射文件会写入用户目录：
+  - `~/Library/Application Support/Local_Document_AI_Desensitization_Tool/chat_lite_masking_map.pkl`
+  - 避免写入 `.app` 内部导致权限问题。
