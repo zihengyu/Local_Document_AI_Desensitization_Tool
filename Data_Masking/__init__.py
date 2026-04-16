@@ -6,6 +6,8 @@
 
 from importlib import import_module
 
+# 冲突统一版本：保留懒加载导出，避免 lite 子应用启动时拉起重依赖
+
 __all__ = [
     'MaskingStrategy', 'ReplacementStrategy', 'HashStrategy', 'TypeBasedStrategy',
     'DataMasker', 'DocumentMasker',

@@ -3,16 +3,6 @@ set -e
 
 rm -rf build dist chat_desensitizer_lite.spec
 
-# 在 macOS 上优先尝试 universal2，若当前 Python 不支持则回退到本机架构
-TARGET_ARCH="universal2"
-if ! python - <<'PY'
-import platform
-print(platform.machine())
-PY
-then
-  TARGET_ARCH=""
-fi
-
 COMMON_ARGS=(
   --noconfirm
   --windowed
@@ -25,14 +15,12 @@ COMMON_ARGS=(
   Data_Masking/ui/chat_gui_app.py
 )
 
-if pyinstaller --help | rg -q "target-arch"; then
-  if pyinstaller --noconfirm --windowed --name _arch_check --target-arch universal2 Data_Masking/ui/chat_gui_app.py >/dev/null 2>&1; then
-    rm -rf build dist _arch_check.spec
-    pyinstaller "${COMMON_ARGS[@]}" --target-arch universal2
-  else
-    echo "[WARN] 当前 Python/PyInstaller 不支持 universal2，回退到本机架构打包。"
-    pyinstaller "${COMMON_ARGS[@]}"
-  fi
+# 优先构建 universal2；失败则回退本机架构，避免工具链冲突
+if pyinstaller --noconfirm --windowed --name _arch_check --target-arch universal2 Data_Masking/ui/chat_gui_app.py >/dev/null 2>&1; then
+  rm -rf build dist _arch_check.spec
+  pyinstaller "${COMMON_ARGS[@]}" --target-arch universal2
 else
+  echo "[WARN] universal2 构建不可用，回退到本机架构。"
+  rm -rf build dist _arch_check.spec
   pyinstaller "${COMMON_ARGS[@]}"
 fi

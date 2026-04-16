@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""lite 聊天脱敏核心逻辑。"""
+"""lite 聊天脱敏核心逻辑。
+
+冲突统一版本：保留规则优先、NER 可选延迟加载策略。
+"""
 
 import json
 import os

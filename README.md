@@ -117,7 +117,7 @@ build_lite.bat
 
 ### macOS 芯片兼容说明（Intel + Apple Silicon）
 
-- `build_lite.sh` 会优先尝试 `--target-arch universal2`（同时支持 Intel + Apple Silicon）；若当前 Python/PyInstaller 工具链不支持，会自动回退到本机架构打包，避免构建冲突。
+- `build_lite.sh` 会先尝试 `--target-arch universal2`（同时支持 Intel + Apple Silicon）；若失败会自动回退到本机架构，减少分支构建冲突。
 - 若应用双击闪退，可在终端执行以下命令查看报错：
 
 ```bash
