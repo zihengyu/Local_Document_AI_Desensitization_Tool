@@ -51,6 +51,21 @@ def _user_data_dir() -> str:
 
 class ChatDesensitizerLite:
     TOKEN_PATTERN = re.compile(r"__CHAT_MASKED_[a-z_]+_[0-9a-f]{8}__")
+    DEFAULT_RULE_DEFINITIONS = [
+        {"id": "ACCOUNT", "entity_type": "ACCOUNT", "label": "账号", "description": "识别账号、账户、用户名等字段后的值", "pattern": r"(?:账号|账户|登录名|user(?:name)?)[：:\s]*([A-Za-z0-9_\-@.]{4,32})", "group": 1},
+        {"id": "PASSWORD", "entity_type": "PASSWORD", "label": "密码", "description": "识别密码、口令等字段后的值", "pattern": r"(?:密码|pass(?:word)?|口令)[：:\s]*([^\s,，。；;]{4,32})", "group": 1},
+        {"id": "VERIFY_CODE", "entity_type": "VERIFY_CODE", "label": "验证码", "description": "识别验证码、校验码、动态码后的值", "pattern": r"(?:验证码|校验码|动态码)[：:\s]*([A-Za-z0-9]{4,8})", "group": 1},
+        {"id": "ADDRESS", "entity_type": "ADDRESS", "label": "地址", "description": "识别地址、住址、收货地址后的文本", "pattern": r"(?:地址|收货地址|住址)[：:\s]*([^\n,，;；]{6,80})", "group": 1},
+        {"id": "WECHAT", "entity_type": "WECHAT", "label": "微信号", "description": "识别微信号字段后的值", "pattern": r"(?:微信号|wx|wechat)[：:\s]*([A-Za-z][-_A-Za-z0-9]{5,19})", "group": 1},
+        {"id": "TRACKING_NO", "entity_type": "TRACKING_NO", "label": "编号", "description": "识别订单号、运单号、合同号、病历号、工号、学号后的值", "pattern": r"(?:订单号|运单号|合同号|病历号|工号|学号)[：:\s]*([A-Za-z0-9\-]{4,32})", "group": 1},
+        {"id": "PHONE", "entity_type": "PHONE", "label": "手机号", "description": "识别中国大陆手机号", "pattern": r"(?<!\d)1[3-9]\d{9}(?!\d)", "group": 0, "min_length": 6},
+        {"id": "ID_CARD", "entity_type": "ID_CARD", "label": "身份证号", "description": "识别 18 位身份证号", "pattern": r"(?<!\d)\d{17}[0-9Xx](?!\d)", "group": 0, "min_length": 6},
+        {"id": "BANK_CARD", "entity_type": "BANK_CARD", "label": "银行卡号", "description": "识别 16 到 19 位银行卡号", "pattern": r"(?<!\d)(?:\d[ -]?){16,19}(?!\d)", "group": 0, "min_length": 6},
+        {"id": "EMAIL", "entity_type": "EMAIL", "label": "邮箱", "description": "识别邮箱地址", "pattern": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "group": 0, "min_length": 6},
+        {"id": "QQ", "entity_type": "QQ", "label": "QQ 号", "description": "识别 7 到 12 位 QQ 号", "pattern": r"(?<!\d)[1-9]\d{6,11}(?!\d)", "group": 0, "min_length": 6},
+        {"id": "PLATE", "entity_type": "PLATE", "label": "车牌号", "description": "识别常见车牌号", "pattern": r"[\u4e00-\u9fa5][A-Z][A-Z0-9]{5,6}", "group": 0, "min_length": 6},
+        {"id": "ORDER_NO", "entity_type": "ORDER_NO", "label": "通用订单号", "description": "识别字母加数字的长编号", "pattern": r"(?<![A-Za-z0-9])[A-Z]{0,4}\d{8,24}(?![A-Za-z0-9])", "group": 0, "min_length": 6},
+    ]
 
     def __init__(
         self,
@@ -73,8 +88,7 @@ class ChatDesensitizerLite:
         self.whitelist = self._load_whitelist()
         self._load_mapping()
 
-        self.regex_rules = self._build_regex_rules()
-        self.context_rules = self._build_context_rules()
+        self.default_rules = self._compile_default_rules()
 
     def _load_mode_config(self) -> Dict:
         default_config = {
@@ -129,26 +143,95 @@ class ChatDesensitizerLite:
     def reload_whitelist(self):
         self.whitelist = self._load_whitelist()
 
-    def _build_regex_rules(self) -> Dict[str, Pattern]:
+    def import_whitelist(self, source_path: str) -> Dict[str, int]:
+        if not source_path or not os.path.exists(source_path):
+            raise FileNotFoundError("白名单文件不存在")
+
+        imported_items = []
+        with open(source_path, "r", encoding="utf-8") as f:
+            for line in f:
+                item = line.strip()
+                if item and not item.startswith("#"):
+                    imported_items.append(item)
+
+        existing = set(self.whitelist)
+        merged = existing.union(imported_items)
+
+        os.makedirs(os.path.dirname(self.whitelist_file), exist_ok=True)
+        with open(self.whitelist_file, "w", encoding="utf-8") as f:
+            for item in sorted(merged):
+                f.write(item + "\n")
+
+        self.whitelist = merged
         return {
-            "PHONE": re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)"),
-            "ID_CARD": re.compile(r"(?<!\d)\d{17}[0-9Xx](?!\d)"),
-            "BANK_CARD": re.compile(r"(?<!\d)(?:\d[ -]?){16,19}(?!\d)"),
-            "EMAIL": re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
-            "QQ": re.compile(r"(?<!\d)[1-9]\d{6,11}(?!\d)"),
-            "PLATE": re.compile(r"[\u4e00-\u9fa5][A-Z][A-Z0-9]{5,6}"),
-            "ORDER_NO": re.compile(r"(?<![A-Za-z0-9])[A-Z]{0,4}\d{8,24}(?![A-Za-z0-9])"),
+            "imported": len(imported_items),
+            "added": len(merged - existing),
+            "total": len(merged),
         }
 
-    def _build_context_rules(self) -> List[Tuple[str, Pattern]]:
+    def _compile_default_rules(self) -> Dict[str, Dict]:
+        compiled = {}
+        for item in self.DEFAULT_RULE_DEFINITIONS:
+            compiled[item["id"]] = {
+                **item,
+                "compiled": re.compile(item["pattern"], re.I),
+            }
+        return compiled
+
+    def get_default_rule_definitions(self) -> List[Dict[str, str]]:
         return [
-            ("ACCOUNT", re.compile(r"(?:账号|账户|登录名|user(?:name)?)[：:\s]*([A-Za-z0-9_\-@.]{4,32})", re.I)),
-            ("PASSWORD", re.compile(r"(?:密码|pass(?:word)?|口令)[：:\s]*([^\s,，。；;]{4,32})", re.I)),
-            ("VERIFY_CODE", re.compile(r"(?:验证码|校验码|动态码)[：:\s]*([A-Za-z0-9]{4,8})", re.I)),
-            ("ADDRESS", re.compile(r"(?:地址|收货地址|住址)[：:\s]*([^\n,，;；]{6,80})", re.I)),
-            ("WECHAT", re.compile(r"(?:微信号|wx|wechat)[：:\s]*([A-Za-z][-_A-Za-z0-9]{5,19})", re.I)),
-            ("TRACKING_NO", re.compile(r"(?:订单号|运单号|合同号|病历号|工号|学号)[：:\s]*([A-Za-z0-9\-]{4,32})", re.I)),
+            {
+                "id": item["id"],
+                "entity_type": item["entity_type"],
+                "label": item["label"],
+                "description": item["description"],
+            }
+            for item in self.DEFAULT_RULE_DEFINITIONS
         ]
+
+    def _token_entity_slug(self, entity_type: str) -> str:
+        slug = re.sub(r"[^a-z0-9]+", "_", entity_type.lower())
+        slug = re.sub(r"_+", "_", slug).strip("_")
+        return slug or "custom"
+
+    def _build_active_rules(self, enabled_rule_ids=None, custom_rules=None) -> Tuple[List[Dict], List[Dict]]:
+        if enabled_rule_ids is None:
+            enabled_rule_ids = [item["id"] for item in self.DEFAULT_RULE_DEFINITIONS]
+
+        enabled = set(enabled_rule_ids)
+        context_rules: List[Dict] = []
+        regex_rules: List[Dict] = []
+
+        for rule_id in enabled_rule_ids:
+            if rule_id not in enabled or rule_id not in self.default_rules:
+                continue
+            rule = self.default_rules[rule_id]
+            target = context_rules if rule["group"] else regex_rules
+            target.append(rule)
+
+        for index, rule in enumerate(custom_rules or [], start=1):
+            name = str(rule.get("name", "")).strip() or f"自定义规则{index}"
+            pattern_text = str(rule.get("pattern", "")).strip()
+            if not pattern_text:
+                continue
+            try:
+                compiled = re.compile(pattern_text, re.I)
+            except re.error as exc:
+                raise ValueError(f"自定义规则“{name}”正则无效：{exc}") from exc
+
+            target = context_rules if compiled.groups else regex_rules
+            target.append({
+                "id": f"CUSTOM_{index}",
+                "entity_type": name,
+                "label": name,
+                "description": "用户自定义规则",
+                "pattern": pattern_text,
+                "group": 1 if compiled.groups else 0,
+                "min_length": 0,
+                "compiled": compiled,
+            })
+
+        return context_rules, regex_rules
 
     def _is_whitelisted(self, value: str) -> bool:
         compact = value.strip()
@@ -159,32 +242,33 @@ class ChatDesensitizerLite:
         if key in self.entity_to_mask:
             return self.entity_to_mask[key]
 
-        token = f"__CHAT_MASKED_{entity_type.lower()}_{uuid.uuid4().hex[:8]}__"
+        token = f"__CHAT_MASKED_{self._token_entity_slug(entity_type)}_{uuid.uuid4().hex[:8]}__"
         self.entity_to_mask[key] = token
         self.mapping[token] = (value, entity_type)
         return token
 
-    def _apply_rules(self, text: str, line_no: int) -> Tuple[str, List[MatchHit]]:
+    def _apply_rules(self, text: str, line_no: int, enabled_rule_ids=None, custom_rules=None) -> Tuple[str, List[MatchHit]]:
         masked_text = text
         hits: List[MatchHit] = []
+        context_rules, regex_rules = self._build_active_rules(enabled_rule_ids=enabled_rule_ids, custom_rules=custom_rules)
 
-        for entity_type, pattern in self.context_rules:
-            for m in list(pattern.finditer(masked_text)):
-                value = m.group(1).strip()
+        for rule in context_rules:
+            for m in list(rule["compiled"].finditer(masked_text)):
+                value = m.group(rule["group"]).strip()
                 if self._is_whitelisted(value):
                     continue
-                token = self._mask_value(value, entity_type)
+                token = self._mask_value(value, rule["entity_type"])
                 masked_text = masked_text.replace(value, token)
-                hits.append(MatchHit(entity_type, value, token, line_no))
+                hits.append(MatchHit(rule["entity_type"], value, token, line_no))
 
-        for entity_type, pattern in self.regex_rules.items():
-            for m in list(pattern.finditer(masked_text)):
-                value = m.group(0).strip()
-                if len(value) < 6 or self._is_whitelisted(value):
+        for rule in regex_rules:
+            for m in list(rule["compiled"].finditer(masked_text)):
+                value = m.group(rule["group"]).strip()
+                if len(value) < int(rule.get("min_length", 6)) or self._is_whitelisted(value):
                     continue
-                token = self._mask_value(value, entity_type)
+                token = self._mask_value(value, rule["entity_type"])
                 masked_text = masked_text.replace(value, token)
-                hits.append(MatchHit(entity_type, value, token, line_no))
+                hits.append(MatchHit(rule["entity_type"], value, token, line_no))
 
         return masked_text, hits
 
@@ -215,6 +299,8 @@ class ChatDesensitizerLite:
         output_path: str,
         mode: str = "lite",
         strict_enable_ner: bool = False,
+        enabled_rule_ids=None,
+        custom_rules=None,
     ) -> Dict:
         preview_limit = int(self.mode_config.get("preview_line_limit", 200))
         hit_limit = int(self.mode_config.get("hit_preview_limit", 500))
@@ -230,7 +316,12 @@ class ChatDesensitizerLite:
                 header = f"{msg['timestamp']} '{msg['sender']}'"
                 body = msg.get("body", "")
 
-                masked_body, hits = self._apply_rules(body, msg["start_line"])
+                masked_body, hits = self._apply_rules(
+                    body,
+                    msg["start_line"],
+                    enabled_rule_ids=enabled_rule_ids,
+                    custom_rules=custom_rules,
+                )
 
                 if mode == "strict" and strict_enable_ner and masked_body.strip():
                     masked_body, ner_hits = self._apply_strict_ner(masked_body, msg["start_line"])
