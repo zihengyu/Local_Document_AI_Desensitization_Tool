@@ -113,3 +113,17 @@ run_lite.bat
 # Windows: 产出 .exe（在 dist/chat_desensitizer_lite/ 或单文件配置）
 build_lite.bat
 ```
+
+
+### macOS 芯片兼容说明（Intel + Apple Silicon）
+
+- `build_lite.sh` 会先尝试 `--target-arch universal2`（同时支持 Intel + Apple Silicon）；若失败会自动回退到本机架构，减少分支构建冲突。
+- 若应用双击闪退，可在终端执行以下命令查看报错：
+
+```bash
+./dist/chat_desensitizer_lite.app/Contents/MacOS/chat_desensitizer_lite
+```
+
+- Lite 应用的映射文件会写入用户目录：
+  - `~/Library/Application Support/Local_Document_AI_Desensitization_Tool/chat_lite_masking_map.pkl`
+  - 避免写入 `.app` 内部导致权限问题。

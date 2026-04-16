@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""lite 聊天脱敏核心逻辑。"""
+"""lite 聊天脱敏核心逻辑。
+
+冲突统一版本：保留规则优先、NER 可选延迟加载策略。
+"""
 
 import json
 import os
 import pickle
 import re
+import sys
 import uuid
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Pattern, Tuple
+from typing import Dict, List, Pattern, Tuple
 
-from chat_parser import iter_chat_messages
+from Data_Masking.chat_parser import iter_chat_messages
 
 
 @dataclass
@@ -22,18 +26,45 @@ class MatchHit:
     line_no: int
 
 
+def _repo_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _resource_base() -> str:
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return getattr(sys, "_MEIPASS")
+    return _repo_root()
+
+
+def _user_data_dir() -> str:
+    if sys.platform == "darwin":
+        base = os.path.expanduser("~/Library/Application Support")
+    elif sys.platform.startswith("win"):
+        base = os.environ.get("APPDATA", os.path.expanduser("~"))
+    else:
+        base = os.path.join(os.path.expanduser("~"), ".local", "share")
+
+    path = os.path.join(base, "Local_Document_AI_Desensitization_Tool")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 class ChatDesensitizerLite:
     TOKEN_PATTERN = re.compile(r"__CHAT_MASKED_[a-z_]+_[0-9a-f]{8}__")
 
     def __init__(
         self,
-        mapping_file: str = "Data_Masking/ui/maps/chat_lite_masking_map.pkl",
-        whitelist_file: str = "config/whitelist.txt",
-        mode_config_file: str = "config/chat_mode.json",
+        mapping_file: str = "",
+        whitelist_file: str = "",
+        mode_config_file: str = "",
     ):
-        self.mapping_file = mapping_file
-        self.whitelist_file = whitelist_file
-        self.mode_config_file = mode_config_file
+        default_mapping = os.path.join(_user_data_dir(), "chat_lite_masking_map.pkl")
+        default_whitelist = os.path.join(_resource_base(), "config", "whitelist.txt")
+        default_mode_config = os.path.join(_resource_base(), "config", "chat_mode.json")
+
+        self.mapping_file = mapping_file or default_mapping
+        self.whitelist_file = whitelist_file or default_whitelist
+        self.mode_config_file = mode_config_file or default_mode_config
 
         self.mapping: Dict[str, Tuple[str, str]] = {}
         self.entity_to_mask: Dict[Tuple[str, str], str] = {}
@@ -159,7 +190,7 @@ class ChatDesensitizerLite:
 
     def _apply_strict_ner(self, text: str, line_no: int) -> Tuple[str, List[MatchHit]]:
         """严格模式可选 NER。仅在调用时才尝试导入和检查模型。"""
-        from NER_model import recognize_entities  # 延迟导入
+        from Data_Masking.NER_model import recognize_entities
 
         result = recognize_entities(text, save_to_file=False, num_workers=1, enable_parallel=False)
         entities = result.get("output", [])

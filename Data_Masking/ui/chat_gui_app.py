@@ -5,13 +5,11 @@ import os
 import sys
 from typing import Dict
 
+# 冲突统一版本：保持独立 lite GUI 入口，不依赖主文档流程
+
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-
-data_masking_root = os.path.dirname(project_root)
-if os.path.join(project_root, 'Data_Masking') not in sys.path:
-    sys.path.insert(0, os.path.join(project_root, 'Data_Masking'))
 
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import (
@@ -33,7 +31,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
 )
 
-from chat_desensitizer_lite import ChatDesensitizerLite
+from Data_Masking.chat_desensitizer_lite import ChatDesensitizerLite
 
 
 class ChatWorker(QThread):
@@ -133,7 +131,7 @@ class ChatLiteWindow(QMainWindow):
         root.addWidget(self.preview)
 
         self.hit_table = QTableWidget(0, 4)
-        self.hit_table.setHorizontalHeaderLabels(["行号", "类型", "原文", "脱敏后"]) 
+        self.hit_table.setHorizontalHeaderLabels(["行号", "类型", "原文", "脱敏后"])
         root.addWidget(QLabel("命中详情（前 500 条）"))
         root.addWidget(self.hit_table)
 
