@@ -1,0 +1,7 @@
+{
+  "default_mode": "lite",
+  "preview_line_limit": 200,
+  "hit_preview_limit": 500,
+  "chunk_message_size": 200,
+  "strict_max_workers": 1
+}
