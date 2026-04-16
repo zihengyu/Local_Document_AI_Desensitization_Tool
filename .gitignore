@@ -7,5 +7,9 @@ Data_Masking/ui/uploads/
 公众号介绍文章.md
 v0.1.0归档2025.3.26.15.37.zip
 build/
+dist/
+.pyinstaller/
+.matplotlib/
+*.spec
 脱敏工具介绍.zip
 .vscode/settings.json
